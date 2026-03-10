@@ -14,6 +14,7 @@ export interface Message {
   role: Role;
   text: string;
   image?: string; // Base64 data string for image support
+  audio?: string; // Base64 data string for audio support
   timestamp: Date;
   isError?: boolean;
 }

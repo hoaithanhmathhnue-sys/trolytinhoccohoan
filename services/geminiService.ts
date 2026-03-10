@@ -34,6 +34,7 @@ export const sendMessageToGemini = async (
   currentMode: SupportMode,
   history: Message[],
   image?: string,
+  audio?: string,
   preferredModelId: string = DEFAULT_MODEL
 ): Promise<string> => {
 
@@ -61,9 +62,7 @@ ${text}`;
 
   if (image) {
     // Assuming image is base64 string
-    const parts: Part[] = [];
-    parts.push({ text: contextAwareMessage });
-
+    const parts: Array<string | Part> = Array.isArray(messageContent) ? messageContent : [{ text: contextAwareMessage }];
     try {
       const [mimeTypeHeader, base64Data] = image.split(';base64,');
       const mimeType = mimeTypeHeader.split(':')[1];
@@ -73,9 +72,27 @@ ${text}`;
           data: base64Data
         }
       });
-      messageContent = parts;
+      messageContent = parts as Part[];
     } catch (e) {
       console.error("Error parsing image", e);
+    }
+  }
+
+  if (audio) {
+    // Assuming audio is base64 string
+    const parts: Array<string | Part> = Array.isArray(messageContent) ? messageContent : [{ text: contextAwareMessage }];
+    try {
+      const [mimeTypeHeader, base64Data] = audio.split(';base64,');
+      const mimeType = mimeTypeHeader.split(':')[1];
+      parts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      });
+      messageContent = parts as Part[];
+    } catch (e) {
+      console.error("Error parsing audio", e);
     }
   }
 

@@ -42,6 +42,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
               </div>
             )}
 
+            {/* Audio Rendering */}
+            {message.audio && (
+              <div className="mb-3">
+                <audio controls src={message.audio} className="max-w-full" />
+              </div>
+            )}
+
             {/* Text Rendering */}
             {isUser ? (
               <p className="whitespace-pre-wrap break-words">{message.text}</p>

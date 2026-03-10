@@ -7,7 +7,7 @@ import ChatMessage from './components/ChatMessage';
 import ModeSelector from './components/ModeSelector';
 import TeacherProfile from './components/TeacherProfile';
 import ApiKeyModal from './components/ApiKeyModal';
-import { Send, Paperclip, Menu, X, Image as ImageIcon, Trash2, ArrowDown, Settings, Download } from 'lucide-react';
+import { Send, Paperclip, Menu, X, Image as ImageIcon, Trash2, ArrowDown, Settings, Download, Mic, Square } from 'lucide-react';
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
@@ -25,6 +25,12 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+
+  // Audio Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBase64, setAudioBase64] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Settings & API Key State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -142,6 +148,46 @@ function App() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAudioBase64(reader.result as string);
+        };
+        reader.readAsDataURL(audioBlob);
+
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("Không thể truy cập microphone. Vui lòng cấp quyền trong cài đặt trình duyệt.");
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if ((!input.trim() && !selectedImage) || isLoading) return;
@@ -153,10 +199,12 @@ function App() {
 
     const userText = input;
     const userImage = selectedImage;
+    const userAudio = audioBase64;
 
     // Reset inputs immediately
     setInput('');
     setSelectedImage(null);
+    setAudioBase64(null);
 
     // Add User Message
     const userMessage: Message = {
@@ -164,6 +212,7 @@ function App() {
       role: Role.USER,
       text: userText,
       image: userImage || undefined,
+      audio: userAudio || undefined,
       timestamp: new Date(),
     };
 
@@ -174,10 +223,11 @@ function App() {
       // Pass both text and image to the service
       // We pass undefined for preferredModelId to let it use default or whatever logic inside
       const responseText = await sendMessageToGemini(
-        userText || "Gửi một ảnh bài tập",
+        userText || (userAudio ? "Gửi một tệp âm thanh" : "Gửi một ảnh bài tập"),
         currentMode,
         messages,
-        userImage || undefined
+        userImage || undefined,
+        userAudio || undefined
       );
 
       const botMessage: Message = {
@@ -445,6 +495,13 @@ function App() {
             >
               <span className="material-icons-round rotate-45">attach_file</span>
             </button>
+            <button
+              type="button"
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
+              className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-900/30' : 'text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            >
+              {isRecording ? <Square size={20} fill="currentColor" /> : <Mic size={20} />}
+            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -467,6 +524,19 @@ function App() {
                 </div>
               )}
 
+              {audioBase64 && !selectedImage && (
+                <div className="mr-2 relative group flex items-center bg-gray-200 dark:bg-gray-700 px-3 py-1.5 rounded-full">
+                  <span className="material-icons-round text-sm text-gray-600 dark:text-gray-300 mr-1">mic</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-300">Đã ghi âm</span>
+                  <button
+                    onClick={() => setAudioBase64(null)}
+                    className="ml-2 bg-white dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded-full w-4 h-4 flex items-center justify-center shadow-sm"
+                  >
+                    <span className="material-icons-round text-[10px]">close</span>
+                  </button>
+                </div>
+              )}
+
               <input
                 ref={inputRef}
                 type="text"
@@ -479,17 +549,17 @@ function App() {
                   }
                 }}
                 className="w-full bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 py-2"
-                placeholder={selectedImage ? "Thêm ghi chú..." : "Nhập câu hỏi hoặc bài tập..."}
-                disabled={isLoading}
+                placeholder={isRecording ? "Đang ghi âm..." : (selectedImage ? "Thêm ghi chú..." : (audioBase64 ? "Thêm tin nhắn ghi âm..." : "Nhập câu hỏi hoặc bài tập..."))}
+                disabled={isLoading || isRecording}
               />
             </div>
 
             <button
               onClick={() => handleSendMessage()}
-              disabled={(!input.trim() && !selectedImage) || isLoading}
+              disabled={(!input.trim() && !selectedImage && !audioBase64) || isLoading || isRecording}
               className={`
                         p-3 rounded-full shadow-lg hover:shadow-glow active:scale-90 transition-all flex-shrink-0 flex items-center justify-center
-                         ${(!input.trim() && !selectedImage) || isLoading
+                         ${(!input.trim() && !selectedImage && !audioBase64) || isLoading || isRecording
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-primary text-white'
                 }
