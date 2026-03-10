@@ -22,7 +22,7 @@ const TeacherProfile: React.FC<TeacherProfileProps> = ({ onGenerateReport, isGen
       <div className="space-y-4 mb-8">
         <div className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
           <GraduationCap size={18} className="mt-0.5 text-primary min-w-[18px]" />
-          <span>Giáo viên - Tất cả các khối lớp</span>
+          <span>Giáo viên Tin học - Cấp THCS và THPT</span>
         </div>
         <div className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
           <BookOpen size={18} className="mt-0.5 text-primary min-w-[18px]" />
